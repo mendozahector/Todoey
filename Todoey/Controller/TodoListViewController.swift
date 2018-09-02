@@ -7,11 +7,12 @@
 //
 
 import UIKit
+import CoreData
 
 class TodoListViewController: UITableViewController {
     var itemArray = [Item]()
     
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -29,8 +30,10 @@ class TodoListViewController: UITableViewController {
         
         let item = itemArray[indexPath.row]
         
-        cell.textLabel?.text = item.title
+        let longGesture = UILongPressGestureRecognizer(target: self, action: #selector(longPressed(_:)))
         
+        cell.addGestureRecognizer(longGesture)
+        cell.textLabel?.text = item.title
         cell.accessoryType = item.done ? .checkmark: .none
         
         return cell
@@ -41,7 +44,10 @@ class TodoListViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         
-        itemArray[indexPath.row].done = !itemArray[indexPath.row].done
+//        itemArray[indexPath.row].done = !itemArray[indexPath.row].done
+        
+        context.delete(itemArray[indexPath.row])
+        itemArray.remove(at: indexPath.row)
         
         saveItems()
     }
@@ -55,8 +61,9 @@ class TodoListViewController: UITableViewController {
         
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             //what will happen once the user clicks the Add Item button on our UIAlert
-            let newItem = Item()
+            let newItem = Item(context: self.context)
             newItem.title = textField.text!
+            newItem.done = false
             
             self.itemArray.append(newItem)
             
@@ -74,29 +81,67 @@ class TodoListViewController: UITableViewController {
     }
     
     
+    //MARK: - Updating Items
+    @objc func longPressed(_ sender: UIGestureRecognizer) {
+        if sender.state == .began {
+            //ending of gesture
+            
+        } else if sender.state == .ended {
+            //beginning of gesture
+            let touchPoint = sender.location(in: self.view)
+            if let indexPath = tableView.indexPathForRow(at: touchPoint) {
+                var task = UITextField()
+                let alert = UIAlertController(title: "Modify Todoey Item", message: "", preferredStyle: .alert)
+                
+                let action = UIAlertAction(title: "Modify", style: .default) { (action) in
+                    self.itemArray[indexPath.row].setValue("\(task.text ?? "")", forKey: "title")
+                    self.saveItems()
+                }
+                
+                alert.addTextField { (alertTextField) in
+                    task = alertTextField
+                    task.text = "\(self.itemArray[indexPath.row].title!)"
+                }
+                
+                alert.addAction(action)
+                
+                present(alert, animated: true, completion: nil)
+            }
+        }
+    }
+    
+    
     //MARK: - Model Manipulation Methods
     func saveItems() {
-        let encoder = PropertyListEncoder()
-        
         do {
-            let data = try encoder.encode(itemArray)
-            try data.write(to: dataFilePath!)
+            try context.save()
         } catch {
-            //unable to encode
-            print("Error encoding item arra, \(error)")
+            print("Error saving context: \(error)")
         }
         
         self.tableView.reloadData()
     }
     
-    func loadItems() {
-        if let data = try? Data(contentsOf: dataFilePath!) {
-            let decoder = PropertyListDecoder()
-            do {
-                itemArray = try decoder.decode([Item].self, from: data)
-            } catch {
-                print("Error decoding item array: \(error)")
-            }
+    func loadItems(with request: NSFetchRequest<Item> = Item.fetchRequest()) {
+        do {
+            itemArray = try context.fetch(request)
+        } catch {
+            print("Error fetching data from context: \(error)")
         }
+        
+        tableView.reloadData()
+    }
+}
+
+//MARK: - SearchBar Methods
+extension TodoListViewController: UISearchBarDelegate {
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        let request: NSFetchRequest<Item> = Item.fetchRequest()
+        
+        request.predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+        
+        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+        
+        loadItems(with: request)
     }
 }
