@@ -7,12 +7,12 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 
 class CategoryViewController: UITableViewController {
-    var categoriesArray = [Category]()
+    var categoriesArray: Results<Category>?
     
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+    let realm = try! Realm()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -22,18 +22,16 @@ class CategoryViewController: UITableViewController {
     
     //MARK: - TableView Datasource Methods
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return categoriesArray.count
+        return categoriesArray?.count ?? 0
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
         
-        let item = categoriesArray[indexPath.row]
-        
         let longGesture = UILongPressGestureRecognizer(target: self, action: #selector(longPressed(_:)))
-        
+
         cell.addGestureRecognizer(longGesture)
-        cell.textLabel?.text = item.name
+        cell.textLabel?.text = categoriesArray?[indexPath.row].name
         
         return cell
     }
@@ -48,8 +46,7 @@ class CategoryViewController: UITableViewController {
         let destinationVC = segue.destination as! TodoListViewController
         
         if let indexPath = tableView.indexPathForSelectedRow {
-            destinationVC.selectedCategory = categoriesArray[indexPath.row]
-            print("categoriesArray[indexPath.row]: \(categoriesArray[indexPath.row])")
+            destinationVC.selectedCategory = categoriesArray?[indexPath.row]
         }
     }
     
@@ -64,12 +61,10 @@ class CategoryViewController: UITableViewController {
             if textField.text!.isEmpty {
                 //do nothing
             } else {
-                let newCategory = Category(context: self.context)
+                let newCategory = Category()
                 newCategory.name = textField.text!
                 
-                self.categoriesArray.append(newCategory)
-                
-                self.saveCategories()
+                self.save(category: newCategory)
             }
         }
         
@@ -85,34 +80,40 @@ class CategoryViewController: UITableViewController {
     
     
     //MARK: - Data Manipulation Methods
-    func saveCategories() {
+    func save(category: Category) {
         do {
-            try context.save()
+            try realm.write {
+                realm.add(category)
+            }
         } catch {
             print("Error saving context: \(error)")
         }
-        
+
         self.tableView.reloadData()
     }
-    
-    func loadCategories(with request: NSFetchRequest<Category> = Category.fetchRequest()) {
-        do {
-            categoriesArray = try context.fetch(request)
-        } catch {
-            print("Error fetching data from context: \(error)")
-        }
-        
+
+    func loadCategories() {
+        categoriesArray = realm.objects(Category.self)
+
         tableView.reloadData()
     }
-    
+
     func deleteCategories(_ indexPath: IndexPath) {
-        context.delete(categoriesArray[indexPath.row])
-        categoriesArray.remove(at: indexPath.row)
-        
-        saveCategories()
+        if let category = categoriesArray?[indexPath.row] {
+            do {
+                try realm.write {
+                    realm.delete(category)
+                }
+            } catch {
+                print("Error deleting category: \(error)")
+            }
+        } else {
+            //empty category
+        }
+        tableView.reloadData()
     }
-    
-    
+
+
     //MARK: - Updating Items
     @objc func longPressed(_ sender: UIGestureRecognizer) {
         if sender.state == .began {
@@ -123,23 +124,29 @@ class CategoryViewController: UITableViewController {
             if let indexPath = tableView.indexPathForRow(at: touchPoint) {
                 var task = UITextField()
                 let alert = UIAlertController(title: "Modify Category", message: "", preferredStyle: .alert)
-                
+
                 let action = UIAlertAction(title: "Modify", style: .default) { (action) in
                     if task.text!.isEmpty {
                         self.deleteCategories(indexPath)
                     } else {
-                        self.categoriesArray[indexPath.row].setValue("\(task.text ?? "")", forKey: "name")
-                        self.saveCategories()
+                        do {
+                            try self.realm.write {
+                                self.categoriesArray?[indexPath.row].name = task.text!
+                            }
+                            self.tableView.reloadData()
+                        } catch {
+                            print("Error modifying name: \(error)")
+                        }
                     }
                 }
-                
+
                 alert.addTextField { (alertTextField) in
                     task = alertTextField
-                    task.text = "\(self.categoriesArray[indexPath.row].name!)"
+                    task.text = self.categoriesArray?[indexPath.row].name
                 }
-                
+
                 alert.addAction(action)
-                
+
                 present(alert, animated: true, completion: nil)
             }
         }
