@@ -8,6 +8,7 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
 class CategoryViewController: SwipeTableViewController {
     var categoriesArray: Results<Category>?
@@ -32,6 +33,7 @@ class CategoryViewController: SwipeTableViewController {
 
         cell.addGestureRecognizer(longGesture)
         cell.textLabel?.text = categoriesArray?[indexPath.row].name
+        cell.backgroundColor = UIColor(hexString: (categoriesArray?[indexPath.row].cellColor)!)
         
         return cell
     }
@@ -64,6 +66,7 @@ class CategoryViewController: SwipeTableViewController {
                 let newCategory = Category()
                 newCategory.name = textField.text!
                 newCategory.dateCreated = Date()
+                newCategory.cellColor = RandomFlatColorWithShade(.light).hexValue()
                 
                 self.save(category: newCategory)
             }
