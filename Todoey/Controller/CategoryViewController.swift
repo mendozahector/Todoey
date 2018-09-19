@@ -30,10 +30,15 @@ class CategoryViewController: SwipeTableViewController {
         let cell = super.tableView(tableView, cellForRowAt: indexPath)
         
         let longGesture = UILongPressGestureRecognizer(target: self, action: #selector(longPressed(_:)))
-
-        cell.addGestureRecognizer(longGesture)
-        cell.textLabel?.text = categoriesArray?[indexPath.row].name
-        cell.backgroundColor = UIColor(hexString: (categoriesArray?[indexPath.row].cellColor)!)
+        
+        if let category = categoriesArray?[indexPath.row] {
+            guard let categoryColor = UIColor(hexString: category.cellColor) else {fatalError()}
+            
+            cell.addGestureRecognizer(longGesture)
+            cell.textLabel?.text = category.name
+            cell.backgroundColor = categoryColor
+            cell.textLabel?.textColor = ContrastColorOf(categoryColor, returnFlat: true)
+        }        
         
         return cell
     }
