@@ -1,5 +1,5 @@
 # Todoey
-Using Realm to create a persistive todo list app.
+Using Realm to create a persistent todo list app.
 
 - Users can add a todo list category.
 - Todo items inside categories can be saved as checked or unchecked.
